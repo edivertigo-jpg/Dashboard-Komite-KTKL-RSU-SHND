@@ -566,7 +566,7 @@ td.mono{font-family:var(--mono);font-size:10px;color:#5a7a95}
 // ═══════════════════════════════════════════════════════════
 //  CONFIG
 // ═══════════════════════════════════════════════════════════
-const API = 'https://script.google.com/macros/s/AKfycbxBo0yyYYHwDCMIB1wkz307RQhuW9pKAd5MI3cm7D4r7PdlJoZZ62t6PCKbp9u79Rau/exec';
+const API = 'https://script.google.com/macros/s/AKfycbxoTlfPFFjEZJWr9jGVL9-FzNYBREeAGIk0yW9inTnDvm4uYKd11Ls92XM_N0JClsDwxw/exec';
 const PAGE_SIZE = 20;
 
 let allData   = [];
@@ -607,7 +607,11 @@ async function fetchData() {
     setDyn(`<div class="center-state">
       <div style="font-size:38px">⚠️</div>
       <div style="color:var(--text2);max-width:380px;line-height:1.6">${e.message}<br><br>
-        Pastikan Apps Script sudah di-update ke V2 dan di-deploy ulang.</div>
+        <b>Langkah perbaikan:</b><br>
+        1. Buka <a href="https://script.google.com" target="_blank" style="color:#1a5fa8">script.google.com</a><br>
+        2. Update fungsi <code>doGet</code> agar mendukung parameter <code>callback</code> (JSONP)<br>
+        3. Deploy ulang → <b>Web App</b> → Execute as: <b>Me</b> → Who has access: <b>Anyone</b><br>
+        4. Salin URL deploy baru ke variabel <code>API</code> di baris pertama script.</div>
       <button class="btn btn-blue" onclick="fetchData()">🔄 Coba Lagi</button>
     </div>`);
     document.getElementById('liveLabel').textContent = 'Gagal';
@@ -1259,38 +1263,57 @@ function resetForm() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  API — semua pakai GET + encoded params (hindari CORS POST)
+//  API — pakai JSONP untuk GET (bypass CORS Google Apps Script)
 // ═══════════════════════════════════════════════════════════
-async function callAPI(params, retry = 2) {
-  const qs = Object.entries(params)
-    .map(([k, v]) => {
-      const val = (typeof v === 'object') ? encodeURIComponent(JSON.stringify(v)) : encodeURIComponent(v);
-      return `${k}=${val}`;
-    })
-    .join('&');
-  const url = `${API}?${qs}&_cb=${Date.now()}`;
-  const controller = new AbortController();
-  const tid = setTimeout(() => controller.abort(), 20000); // 20s timeout
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(tid);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      // GAS kadang mengembalikan HTML error — tangkap di sini
-      throw new Error('Respons server tidak valid (bukan JSON). Coba refresh.');
+let _jsonpCounter = 0;
+
+function callAPI(params, retry = 2) {
+  return new Promise((resolve, reject) => {
+    const cbName = '__gasCallback_' + (++_jsonpCounter) + '_' + Date.now();
+    const qs = Object.entries(params)
+      .map(([k, v]) => {
+        const val = (typeof v === 'object') ? encodeURIComponent(JSON.stringify(v)) : encodeURIComponent(String(v));
+        return `${k}=${val}`;
+      })
+      .join('&');
+
+    const url = `${API}?${qs}&callback=${cbName}&_cb=${Date.now()}`;
+
+    // Timeout 25 detik
+    const tid = setTimeout(() => {
+      cleanup();
+      if (retry > 0) {
+        callAPI(params, retry - 1).then(resolve).catch(reject);
+      } else {
+        reject(new Error('Timeout — server terlalu lama merespons. Pastikan Apps Script sudah di-deploy sebagai Web App dengan akses "Anyone".'));
+      }
+    }, 25000);
+
+    function cleanup() {
+      clearTimeout(tid);
+      delete window[cbName];
+      const el = document.getElementById('jsonp_' + cbName);
+      if (el) el.remove();
     }
-  } catch (err) {
-    clearTimeout(tid);
-    if (retry > 0 && err.name !== 'AbortError') {
-      await new Promise(r => setTimeout(r, 1200));
-      return callAPI(params, retry - 1);
-    }
-    if (err.name === 'AbortError') throw new Error('Timeout — server terlalu lama merespons. Coba lagi.');
-    throw err;
-  }
+
+    window[cbName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    const script = document.createElement('script');
+    script.id = 'jsonp_' + cbName;
+    script.src = url;
+    script.onerror = function() {
+      cleanup();
+      if (retry > 0) {
+        setTimeout(() => callAPI(params, retry - 1).then(resolve).catch(reject), 1200);
+      } else {
+        reject(new Error('Gagal terhubung ke server. Periksa URL Apps Script dan pastikan sudah di-deploy ulang dengan akses "Anyone".'));
+      }
+    };
+    document.head.appendChild(script);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
