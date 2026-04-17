@@ -16,32 +16,67 @@
 <!-- ── PWA INSTALL PROMPT ──────────────────────────────── -->
 <script>
   let _deferredPrompt = null;
+
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     _deferredPrompt = e;
+
+    // Tampilkan tombol di header
     const btn = document.getElementById('btnInstallPWA');
     if (btn) btn.style.display = 'inline-flex';
+
+    // Tampilkan banner otomatis — kecuali user sudah install
+    const dismissed = localStorage.getItem('pwa-install-dismissed');
+    if (dismissed !== 'installed') {
+      setTimeout(() => {
+        const banner = document.getElementById('installBanner');
+        if (banner) banner.classList.add('show');
+      }, 1500); // delay 1.5 detik biar halaman keburu load dulu
+    }
   });
+
   window.addEventListener('appinstalled', () => {
     _deferredPrompt = null;
+    localStorage.setItem('pwa-install-dismissed', 'installed');
+    hideBanner();
     const btn = document.getElementById('btnInstallPWA');
     if (btn) btn.style.display = 'none';
     if (typeof showToast === 'function') showToast('✅ Aplikasi berhasil diinstall!');
   });
-  function triggerInstall() {
-    if (!_deferredPrompt) {
-      if (typeof showToast === 'function') showToast('⚠️ Install tidak tersedia — coba buka lewat Chrome/Edge', true);
-      return;
-    }
+
+  function hideBanner() {
+    const banner = document.getElementById('installBanner');
+    if (banner) banner.classList.remove('show');
+  }
+
+  function dismissInstallBanner() {
+    hideBanner();
+    // Tidak disimpan ke localStorage — banner akan muncul lagi di kunjungan berikutnya
+    // sampai user benar-benar install
+  }
+
+  function triggerInstallBanner() {
+    if (!_deferredPrompt) return;
+    hideBanner();
     _deferredPrompt.prompt();
     _deferredPrompt.userChoice.then(choice => {
       if (choice.outcome === 'accepted') {
+        localStorage.setItem('pwa-install-dismissed', 'installed');
         if (typeof showToast === 'function') showToast('✅ Instalasi diterima!');
       }
       _deferredPrompt = null;
       const btn = document.getElementById('btnInstallPWA');
       if (btn) btn.style.display = 'none';
     });
+  }
+
+  // Tombol install di header
+  function triggerInstall() {
+    if (!_deferredPrompt) {
+      if (typeof showToast === 'function') showToast('⚠️ Install tidak tersedia — coba buka lewat Chrome/Edge', true);
+      return;
+    }
+    triggerInstallBanner();
   }
 </script>
 <!-- ─────────────────────────────────────────────────────── -->
@@ -258,6 +293,18 @@ td.mono{font-family:var(--mono);font-size:10px;color:#5a7a95}
 /* ── TOAST ── */
 #toast{position:fixed;bottom:20px;right:20px;z-index:9999;background:#fff;border:1px solid var(--teal);color:#047857;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:700;transform:translateY(60px);opacity:0;transition:all .28s cubic-bezier(.4,0,.2,1);pointer-events:none;max-width:320px}
 #toast.on{transform:translateY(0);opacity:1}
+/* ── PWA INSTALL BANNER ── */
+#installBanner{position:fixed;bottom:0;left:0;right:0;z-index:9998;background:#fff;border-top:2px solid #1a5fa8;box-shadow:0 -4px 24px rgba(26,95,168,.18);padding:14px 20px;display:flex;align-items:center;gap:14px;transform:translateY(110%);transition:transform .35s cubic-bezier(.4,0,.2,1);flex-wrap:wrap}
+#installBanner.show{transform:translateY(0)}
+.install-banner-ico{font-size:36px;flex-shrink:0}
+.install-banner-text{flex:1;min-width:180px}
+.install-banner-text strong{display:block;font-size:13px;font-weight:800;color:#1a2e45;margin-bottom:2px}
+.install-banner-text span{font-size:11px;color:#7a9bb5}
+.install-banner-btns{display:flex;gap:8px;flex-shrink:0}
+.btn-install-go{background:#1a5fa8;color:#fff;border:none;padding:10px 20px;border-radius:9px;font-family:var(--font);font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .18s}
+.btn-install-go:hover{background:#2478cc;transform:translateY(-1px)}
+.btn-install-no{background:#f0f4f8;color:#7a9bb5;border:1px solid #d1dce8;padding:10px 14px;border-radius:9px;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;transition:all .18s}
+.btn-install-no:hover{color:#1a2e45}
 
 /* ── PROGRESS ── */
 .progress-bar{height:4px;background:#d1dce8;border-radius:2px;overflow:hidden;margin-top:8px}
@@ -594,6 +641,20 @@ td.mono{font-family:var(--mono);font-size:10px;color:#5a7a95}
 </div>
 
 <div id="toast"></div>
+
+<!-- ── PWA INSTALL BANNER ──────────────────────────────── -->
+<div id="installBanner">
+  <div class="install-banner-ico">📲</div>
+  <div class="install-banner-text">
+    <strong>Install Dashboard Nakes SHND</strong>
+    <span>Akses lebih cepat langsung dari layar utama HP / laptop Anda</span>
+  </div>
+  <div class="install-banner-btns">
+    <button class="btn-install-go" onclick="triggerInstallBanner()">⬇️ Install Sekarang</button>
+    <button class="btn-install-no" onclick="dismissInstallBanner()">Nanti</button>
+  </div>
+</div>
+<!-- ─────────────────────────────────────────────────────── -->
 
 <script>
 // ═══════════════════════════════════════════════════════════
