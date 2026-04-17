@@ -11,7 +11,39 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Nakes SHND">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- ─────────────────────────────────────────────────────── -->
+<!-- ── PWA INSTALL PROMPT ──────────────────────────────── -->
+<script>
+  let _deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    _deferredPrompt = e;
+    const btn = document.getElementById('btnInstallPWA');
+    if (btn) btn.style.display = 'inline-flex';
+  });
+  window.addEventListener('appinstalled', () => {
+    _deferredPrompt = null;
+    const btn = document.getElementById('btnInstallPWA');
+    if (btn) btn.style.display = 'none';
+    if (typeof showToast === 'function') showToast('✅ Aplikasi berhasil diinstall!');
+  });
+  function triggerInstall() {
+    if (!_deferredPrompt) {
+      if (typeof showToast === 'function') showToast('⚠️ Install tidak tersedia — coba buka lewat Chrome/Edge', true);
+      return;
+    }
+    _deferredPrompt.prompt();
+    _deferredPrompt.userChoice.then(choice => {
+      if (choice.outcome === 'accepted') {
+        if (typeof showToast === 'function') showToast('✅ Instalasi diterima!');
+      }
+      _deferredPrompt = null;
+      const btn = document.getElementById('btnInstallPWA');
+      if (btn) btn.style.display = 'none';
+    });
+  }
+</script>
 <!-- ─────────────────────────────────────────────────────── -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -257,6 +289,7 @@ td.mono{font-family:var(--mono);font-size:10px;color:#5a7a95}
     <button class="btn btn-violet" onclick="openAdd()">＋ Tambah Nakes</button>
     <button class="btn btn-ghost" onclick="fetchData()">🔄 Refresh</button>
     <a href="https://drive.google.com/drive/folders/1oC69p3H6sT6WuPGuMIoVURLoi1QUQI4N" target="_blank" class="btn btn-ghost">📁 Drive</a>
+    <button id="btnInstallPWA" class="btn btn-teal" onclick="triggerInstall()" style="display:none">📲 Install App</button>
   </div>
 </div>
 </header>
