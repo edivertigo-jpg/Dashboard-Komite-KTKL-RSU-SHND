@@ -17,27 +17,27 @@
 <script>
   let _deferredPrompt = null;
 
+  // Cek apakah sudah berjalan sebagai PWA (standalone)
+  function isRunningAsPWA() {
+    return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+  }
+
+  // Tangkap event dari browser
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     _deferredPrompt = e;
-
     // Tampilkan tombol di header
     const btn = document.getElementById('btnInstallPWA');
     if (btn) btn.style.display = 'inline-flex';
-
-    // Tampilkan banner otomatis — kecuali user sudah install
-    const dismissed = localStorage.getItem('pwa-install-dismissed');
-    if (dismissed !== 'installed') {
-      setTimeout(() => {
-        const banner = document.getElementById('installBanner');
-        if (banner) banner.classList.add('show');
-      }, 1500); // delay 1.5 detik biar halaman keburu load dulu
-    }
+    // Update teks tombol banner jadi aktif
+    const goBtn = document.querySelector('.btn-install-go');
+    if (goBtn) goBtn.textContent = '⬇️ Install Sekarang';
   });
 
   window.addEventListener('appinstalled', () => {
     _deferredPrompt = null;
-    localStorage.setItem('pwa-install-dismissed', 'installed');
+    localStorage.setItem('pwa-installed', '1');
     hideBanner();
     const btn = document.getElementById('btnInstallPWA');
     if (btn) btn.style.display = 'none';
@@ -51,33 +51,44 @@
 
   function dismissInstallBanner() {
     hideBanner();
-    // Tidak disimpan ke localStorage — banner akan muncul lagi di kunjungan berikutnya
-    // sampai user benar-benar install
+    // Tidak disimpan — muncul lagi di kunjungan berikutnya sampai benar-benar install
   }
 
   function triggerInstallBanner() {
-    if (!_deferredPrompt) return;
-    hideBanner();
-    _deferredPrompt.prompt();
-    _deferredPrompt.userChoice.then(choice => {
-      if (choice.outcome === 'accepted') {
-        localStorage.setItem('pwa-install-dismissed', 'installed');
-        if (typeof showToast === 'function') showToast('✅ Instalasi diterima!');
-      }
-      _deferredPrompt = null;
-      const btn = document.getElementById('btnInstallPWA');
-      if (btn) btn.style.display = 'none';
-    });
+    if (_deferredPrompt) {
+      // Browser support — langsung prompt
+      hideBanner();
+      _deferredPrompt.prompt();
+      _deferredPrompt.userChoice.then(choice => {
+        if (choice.outcome === 'accepted') {
+          localStorage.setItem('pwa-installed', '1');
+          if (typeof showToast === 'function') showToast('✅ Instalasi diterima!');
+        }
+        _deferredPrompt = null;
+        const btn = document.getElementById('btnInstallPWA');
+        if (btn) btn.style.display = 'none';
+      });
+    } else {
+      // Fallback — tampilkan panduan manual
+      if (typeof showToast === 'function')
+        showToast('💡 Buka menu browser (⋮) lalu pilih "Tambahkan ke layar utama"', false);
+      hideBanner();
+    }
   }
 
-  // Tombol install di header
-  function triggerInstall() {
-    if (!_deferredPrompt) {
-      if (typeof showToast === 'function') showToast('⚠️ Install tidak tersedia — coba buka lewat Chrome/Edge', true);
-      return;
-    }
-    triggerInstallBanner();
-  }
+  function triggerInstall() { triggerInstallBanner(); }
+
+  // ── Tampilkan banner otomatis saat halaman dibuka ──────
+  window.addEventListener('load', () => {
+    // Jangan tampilkan kalau sudah jalan sebagai PWA atau sudah install
+    if (isRunningAsPWA()) return;
+    if (localStorage.getItem('pwa-installed') === '1') return;
+
+    setTimeout(() => {
+      const banner = document.getElementById('installBanner');
+      if (banner) banner.classList.add('show');
+    }, 1500);
+  });
 </script>
 <!-- ─────────────────────────────────────────────────────── -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
